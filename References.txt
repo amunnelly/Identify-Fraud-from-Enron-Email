@@ -1,0 +1,11 @@
+Data Analysis with Open Source Tools, by Philipp K Janert. O’Reilly Media.
+Python for Data Analysis, by Wes McKinney. O’Reilly Media.
+Data Smart, by John W Foreman. Wiley and Sons.
+Machine Learning in Python, by Michael Bowles. Wiley and Sons.
+
+
+https://en.wikipedia.org/wiki/Enron
+http://news.bbc.co.uk/hi/english/static/in_depth/business/2002/enron/default.stm
+http://www.trinity.edu/rjensen/fraudenroncast.htm
+http://www.theguardian.com/business/2002/feb/01/corporatefraud.enron3
+http://stackoverflow.com/questions/11620914/removing-nan-values-from-an-array
