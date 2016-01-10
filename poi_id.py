@@ -42,28 +42,43 @@ all_features = ['deferral_payments',
                       'shared_receipt_with_poi']
 
 
-
-#[features_list.append(a) for a in all_features]
-
-for a in all_features:
-    counter = 0
-    for key, value in data_dict.iteritems():
-        temp = value.get(a)
-        if value.get(a) != 'NaN':
-            counter += 1
+def add_to_feature_list(all_features, features_list, feature_count):
+    '''
+    (list, list, int) -> list
+    The function iterates through each item in all_features, and counts
+    the number of legitimate (that is, not 'NaN') values that exist in
+    the data_dict corresponding to the list item. If the legimate feature
+    count is higher than feature_count, that feature is added to the
+    features_list returned by the function.
+    '''
+    for a in all_features:
+        counter = 0
+        for key, value in data_dict.iteritems():
+            if value.get(a) != 'NaN':
+                counter += 1
+            else:
+                continue
+        if counter > feature_count: # To set the number of features added
+            features_list.append(a)
         else:
             continue
-    if counter > 100: # To set the number of features added
-        features_list.append(a)
-    else:
-        continue
-
+        
+    return features_list
+    
+features_list = add_to_feature_list(all_features, features_list, 100)
 
 ### Task 2: Remove outliers
 
 # A helper data frame
 initial_df = pd.DataFrame(data_dict)
 enron = initial_df.T # making the features the keys to the data frame
+
+'''
+A quick scan through the names and the figures reveals
+an obvious outlier.
+'''
+
+enron.drop('TOTAL', inplace=True) # OUTLIER REMOVED
 
 def color_checker(color):
     '''
@@ -80,26 +95,40 @@ enron['poi_color'] = enron['poi'].map(lambda x: color_checker(x))
 
 # Look at some plots to get a feel for the data
 
-def create_basic_plots():
-    plt.plot(enron.total_stock_value,marker = '*', linewidth = 0)
-    plt.plot(enron.total_payments,marker = '*', linewidth = 0)
-    plt.plot(enron.restricted_stock, marker = '*', linewidth = 0)
-    plt.plot(enron.exercised_stock_options, marker = '*', linewidth = 0)
-    plt.plot(enron.salary, marker = '*', linewidth = 0)
-    plt.plot(enron.expenses, marker = '*', linewidth = 0)
-    plt.plot(enron.other, marker = '*', linewidth = 0)
-    plt.plot(enron.bonus, marker = '*', linewidth = 0)
-    plt.plot(enron.long_term_incentive, marker = '*', linewidth = 0)
-    plt.plot(enron.deferred_income, marker = '*', linewidth = 0)
-    plt.plot(enron.director_fees, marker = '*', linewidth = 0)
-    enron[enron.loan_advances != 'NaN']
+def create_basic_plots(df):
+    myColumns = list(df.columns)
+    df = normalise(df)
+    for m in myColumns:
+        temp = df.get(m)
+        plt.plot(temp.values, marker = '*', linewidth = 0, label = m)
+#        plt.legend()
 
     return
     
 ### Task 3: Create new feature(s)
 ### Store to my_dataset for easy export below.
 
+'''
+3A. Create a second df, enron2, where the column dtypes
+    are converted to floats where possible.
+'''
 
+myColumns = list(enron.columns)
+holding_dict = {}
+for col in myColumns:
+    temp = enron.get(col)
+    try:
+        holding_dict[col] = temp.astype(float)
+    except:
+        holding_dict[col] = temp
+    
+enron2 = pd.DataFrame(holding_dict)
+
+'''
+3B. Create a third df, enronN, where the float values
+    are normalised relative to each other
+    
+'''
 
 def normalise(data):
     '''
@@ -108,9 +137,105 @@ def normalise(data):
     mean = data.mean()
     sd = data.std()
     return (data-mean)/sd
+    
+
+holding_dict = {}
+myColumns_norm = myColumns
+myColumns_norm.remove('poi')
+for col in myColumns:
+    temp = enron.get(col)
+    
+    try:
+        newCol = temp.astype(float)
+        holding_dict[col] = normalise(newCol)
+    except:
+        holding_dict[col] = temp
 
 
-my_dataset = data_dict
+enronN = pd.DataFrame(holding_dict)
+enronN['poi'] = enron['poi'] # Restore the poi column post-normalisation
+enronN_corr = enronN.corr()
+#enronN.to_csv('enronN_corr.csv')
+#
+#enron2.corr().to_csv("enron_corr.csv")
+
+'''
+3C. As the columns related to stocks seem to correlate, we need to create
+    a new column, stocks, to represent these values. We'll create two
+    functions to create this new column - one by regression, and one by
+    Principal Component Analysis.
+'''
+
+from sklearn.linear_model import LinearRegression
+from sklearn.decomposition import PCA
+from sklearn.cross_validation import KFold
+
+
+reg = LinearRegression()
+pca = PCA()
+
+def create_new_feature_regression(df):
+    stocks = df[['total_stock_value', 
+                     'exercised_stock_options']]
+    stocks.dropna(inplace=True)
+    '''
+    3C-Regression. Create test and training data from the stocks df,
+            and use that to create a new variable, stock_data
+    '''
+    
+    
+    kf = KFold(100, n_folds = 2, shuffle=True)
+    for train, test in kf:
+        total_train = [stocks.ix[t]['total_stock_value'] for t in train]
+        total_test = [stocks.ix[t]['total_stock_value'] for t in test]
+        options_train = [stocks.ix[t]['exercised_stock_options'] for t in train]
+        options_test = [stocks.ix[t]['exercised_stock_options'] for t in test]
+    
+    reg.fit(np.array(total_train).reshape(50,1),
+            np.array(options_train).reshape(50,1))
+            
+    stock_data = [reg.predict(x)[0][0] for x in stocks.total_stock_value]
+    stocks['stock_data'] = stock_data
+    stock_data = pd.DataFrame(stocks['stock_data'], columns = ['stock_data'])
+    
+    return stock_data
+    
+def create_new_feature_pca(df):
+    stocks = df[['total_stock_value', 
+                     'exercised_stock_options']]
+    stocks.dropna(inplace=True)
+
+    stock_data = pca.fit_transform(
+                np.array(stocks.total_stock_value).reshape(100,1),
+                np.array(stocks.exercised_stock_options).reshape(100,1))
+    stocks['stock_data'] = stock_data
+    stock_data = pd.DataFrame(stocks['stock_data'], columns = ['stock_data'])
+    
+    return stock_data
+
+'''
+3D. Create the stock_data column and then add it to either the
+    enronN normalised data frame or the enron2 data frame as
+    appropriate
+'''
+stock_data = create_new_feature_regression(enronN)
+enron_final = enronN.join(stock_data)
+
+
+'''
+3E. Transform enron_final to a dictionary, marking sure to change NaN/nan
+    values to 'NaN' strings - the feature_format() function will throw an error
+    otherwise.
+'''
+
+enron_final.fillna(value = 'NaN', inplace = True)
+
+my_dataset = enron_final.T.to_dict()
+
+features_list = ['poi',
+                 'salary',
+                 'total_payments',
+                 'stock_data']
 
 ### Extract features and labels from dataset for local testing
 data = featureFormat(my_dataset, features_list, sort_keys = True)
@@ -156,14 +281,24 @@ my_rfc_parameters = {'criterion':['gini', 'entropy'],
 
 from sklearn.pipeline import make_pipeline
 
-from sklearn.decomposition import PCA
+
+
+#clf = GaussianNB()
+#clf = make_pipeline(PCA(), GaussianNB())
+#clf = SVC()
+#clf = AdaBoostClassifier()
+clf = DecisionTreeClassifier()
+#clf = make_pipeline(PCA(), DecisionTreeClassifier())
+#clf = GridSearchCV(DecisionTreeClassifier(), my_dtc_parameters)
+
 #clf = make_pipeline(PCA(), RandomForestClassifier(max_depth = None, min_samples_split=1))
 
+#clf = RandomForestClassifier()
 #dtc = GridSearchCV(RandomForestClassifier(), my_dtc_parameters)
 #svm = GridSearchCV(SVC(), my_svc_parameters)
 #clf = make_pipeline(PCA(), dtc)
-rfc = GridSearchCV(RandomForestClassifier(), my_rfc_parameters)
-clf = make_pipeline(PCA(), rfc)
+#rfc = GridSearchCV(RandomForestClassifier(), my_rfc_parameters)
+#clf = make_pipeline(PCA(), rfc)
 #clf = make_pipeline(PCA(), RandomForestClassifier())
 
 
@@ -172,7 +307,6 @@ clf = make_pipeline(PCA(), rfc)
 #features_train, features_test, labels_train, labels_test = \
 #    train_test_split(features, labels, test_size=0.3, random_state=42)
 
-from sklearn.cross_validation import KFold
 kf = KFold(len(data), n_folds = 2, shuffle=True)
 for train, test in kf:
     features_train = [features[t] for t in train]

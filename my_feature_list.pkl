@@ -5,10 +5,6 @@ aS'salary'
 p2
 aS'total_payments'
 p3
-aS'total_stock_value'
+aS'stock_data'
 p4
-aS'exercised_stock_options'
-p5
-aS'restricted_stock'
-p6
 a.
