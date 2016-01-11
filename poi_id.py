@@ -107,6 +107,8 @@ def create_basic_plots(df):
     
 ### Task 3: Create new feature(s)
 ### Store to my_dataset for easy export below.
+    
+
 
 '''
 3A. Create a second df, enron2, where the column dtypes
@@ -124,6 +126,16 @@ for col in myColumns:
     
 enron2 = pd.DataFrame(holding_dict)
 
+
+
+'''
+Create another new feature, as per the rubric.
+'''
+
+enron2['mail_ratio'] = enron2.from_poi_to_this_person / enron2.from_this_person_to_poi
+# eliminate values rounded up to infinity
+enron2['mail_ratio'] = enron2[enron2['mail_ratio'] <= 54]
+
 '''
 3B. Create a third df, enronN, where the float values
     are normalised relative to each other
@@ -140,9 +152,9 @@ def normalise(data):
     
 
 holding_dict = {}
-myColumns_norm = myColumns
+myColumns_norm = list(enron2.columns)
 myColumns_norm.remove('poi')
-for col in myColumns:
+for col in myColumns_norm:
     temp = enron.get(col)
     
     try:
@@ -158,6 +170,8 @@ enronN_corr = enronN.corr()
 #enronN.to_csv('enronN_corr.csv')
 #
 #enron2.corr().to_csv("enron_corr.csv")
+
+
 
 '''
 3C. As the columns related to stocks seem to correlate, we need to create
@@ -222,6 +236,7 @@ stock_data = create_new_feature_regression(enronN)
 enron_final = enronN.join(stock_data)
 
 
+
 '''
 3E. Transform enron_final to a dictionary, marking sure to change NaN/nan
     values to 'NaN' strings - the feature_format() function will throw an error
@@ -235,7 +250,8 @@ my_dataset = enron_final.T.to_dict()
 features_list = ['poi',
                  'salary',
                  'total_payments',
-                 'stock_data']
+                 'stock_data',
+                 'mail_ratio']
 
 ### Extract features and labels from dataset for local testing
 data = featureFormat(my_dataset, features_list, sort_keys = True)
